@@ -16,7 +16,6 @@
     SGTrack *obj = [[self.class alloc] init];
     obj->_type = self->_type;
     obj->_index = self->_index;
-    obj->_core = self->_core;
     return obj;
 }
 
@@ -27,42 +26,6 @@
         self->_index = index;
     }
     return self;
-}
-
-- (void *)coreptr
-{
-    return self->_core;
-}
-
-+ (SGTrack *)trackWithTracks:(NSArray<SGTrack *> *)tracks type:(SGMediaType)type
-{
-    for (SGTrack *obj in tracks) {
-        if (obj.type == type) {
-            return obj;
-        }
-    }
-    return nil;
-}
-
-+ (SGTrack *)trackWithTracks:(NSArray<SGTrack *> *)tracks index:(NSInteger)index
-{
-    for (SGTrack *obj in tracks) {
-        if (obj.index == index) {
-            return obj;
-        }
-    }
-    return nil;
-}
-
-+ (NSArray<SGTrack *> *)tracksWithTracks:(NSArray<SGTrack *> *)tracks type:(SGMediaType)type
-{
-    NSMutableArray *array = [NSMutableArray array];
-    for (SGTrack *obj in tracks) {
-        if (obj.type == type) {
-            [array addObject:obj];
-        }
-    }
-    return array.count ? [array copy] : nil;
 }
 
 @end

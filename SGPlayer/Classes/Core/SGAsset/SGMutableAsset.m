@@ -50,7 +50,7 @@
     return obj;
 }
 
-- (id<SGDemuxable>)newDemuxer
+- (id<SGDemuxable>)newDemuxable
 {
     NSMutableArray *demuxables = [NSMutableArray array];
     for (SGMutableTrack *obj in self->_tracks) {

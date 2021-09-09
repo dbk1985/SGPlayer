@@ -21,8 +21,6 @@
     AudioUnit _timePitchUnit;
 }
 
-@property (nonatomic, readonly) BOOL needsTimePitchNode;
-
 @end
 
 @implementation SGAudioPlayer
@@ -123,18 +121,9 @@
     AUGraphSetNodeInputCallback(_graph, _mixerNode, 0, &inputCallbackStruct);
     AudioUnitAddRenderNotify(_outputUnit, outputCallback, (__bridge void *)self);
     
-    AudioUnitParameterID mixerParam;
-#if SGPLATFORM_TARGET_OS_MAC
-    mixerParam = kStereoMixerParam_Volume;
-#elif SGPLATFORM_TARGET_OS_IPHONE_OR_TV
-    mixerParam = kMultiChannelMixerParam_Volume;
-#endif
-    AudioUnitGetParameter(_mixerUnit, mixerParam, kAudioUnitScope_Input, 0, &_volume);
-    AudioUnitGetParameter(_timePitchUnit, kNewTimePitchParam_Rate, kAudioUnitScope_Global, 0, &_rate);
-    AudioUnitGetParameter(_timePitchUnit, kNewTimePitchParam_Pitch, kAudioUnitScope_Global, 0, &_pitch);
-    
+    [self setRate:1];
+    [self setVolume:1];
     [self setAsbd:asbd];
-    [self reconnectTimePitchNodeForce:YES];
 
     AUGraphInitialize(_graph);
 }
@@ -162,24 +151,6 @@
                 }
             }
         }
-    }
-}
-
-- (void)reconnectTimePitchNodeForce:(BOOL)force
-{
-    BOOL needsTimePitchNode = (_rate != 1.0) || (_pitch != 0.0);
-    if (_needsTimePitchNode != needsTimePitchNode || force) {
-        _needsTimePitchNode = needsTimePitchNode;
-        if (needsTimePitchNode) {
-            [self disconnectNodeInput:_mixerNode destNode:_outputNode];
-            AUGraphConnectNodeInput(_graph, _mixerNode, 0, _timePitchNode, 0);
-            AUGraphConnectNodeInput(_graph, _timePitchNode, 0, _outputNode, 0);
-        } else {
-            [self disconnectNodeInput:_mixerNode destNode:_timePitchNode];
-            [self disconnectNodeInput:_timePitchNode destNode:_outputNode];
-            AUGraphConnectNodeInput(_graph, _mixerNode, 0, _outputNode, 0);
-        }
-        AUGraphUpdate(_graph, NULL);
     }
 }
 
@@ -217,9 +188,6 @@
 
 - (void)setVolume:(float)volume
 {
-    if (_volume == volume) {
-        return;
-    }
     AudioUnitParameterID param;
 #if SGPLATFORM_TARGET_OS_MAC
     param = kStereoMixerParam_Volume;
@@ -237,19 +205,19 @@
         return;
     }
     if (AudioUnitSetParameter(_timePitchUnit, kNewTimePitchParam_Rate, kAudioUnitScope_Global, 0, rate, 0) == noErr) {
+        if (_rate == 1.0 || rate == 1.0) {
+            if (rate == 1.0) {
+                [self disconnectNodeInput:_mixerNode destNode:_timePitchNode];
+                [self disconnectNodeInput:_timePitchNode destNode:_outputNode];
+                AUGraphConnectNodeInput(_graph, _mixerNode, 0, _outputNode, 0);
+            } else {
+                [self disconnectNodeInput:_mixerNode destNode:_outputNode];
+                AUGraphConnectNodeInput(_graph, _mixerNode, 0, _timePitchNode, 0);
+                AUGraphConnectNodeInput(_graph, _timePitchNode, 0, _outputNode, 0);
+            }
+            AUGraphUpdate(_graph, NULL);
+        }
         _rate = rate;
-        [self reconnectTimePitchNodeForce:NO];
-    }
-}
-
-- (void)setPitch:(float)pitch
-{
-    if (_pitch == pitch) {
-        return;
-    }
-    if (AudioUnitSetParameter(_timePitchUnit, kNewTimePitchParam_Pitch, kAudioUnitScope_Global, 0, pitch, 0) == noErr) {
-        _pitch = pitch;
-        [self reconnectTimePitchNodeForce:NO];
     }
 }
 
@@ -257,18 +225,14 @@
 {
     UInt32 size = sizeof(AudioStreamBasicDescription);
     AudioUnitPropertyID param = kAudioUnitProperty_StreamFormat;
-    if (AudioUnitSetProperty(_mixerUnit, param, kAudioUnitScope_Input, 0, &asbd, size) == noErr &&
-        AudioUnitSetProperty(_mixerUnit, param, kAudioUnitScope_Output, 0, &asbd, size) == noErr &&
+    if (AudioUnitSetProperty(_mixerUnit, param, kAudioUnitScope_Global, 0, &asbd, size) == noErr &&
         AudioUnitSetProperty(_outputUnit, param, kAudioUnitScope_Input, 0, &asbd, size) == noErr &&
-        AudioUnitSetProperty(_timePitchUnit, param, kAudioUnitScope_Input, 0, &asbd, size) == noErr &&
-        AudioUnitSetProperty(_timePitchUnit, param, kAudioUnitScope_Output, 0, &asbd, size) == noErr) {
+        AudioUnitSetProperty(_timePitchUnit, param, kAudioUnitScope_Global, 0, &asbd, size) == noErr) {
         _asbd = asbd;
     } else {
-        AudioUnitSetProperty(_mixerUnit, param, kAudioUnitScope_Input, 0, &_asbd, size);
-        AudioUnitSetProperty(_mixerUnit, param, kAudioUnitScope_Output, 0, &_asbd, size);
+        AudioUnitSetProperty(_mixerUnit, param, kAudioUnitScope_Global, 0, &_asbd, size);
         AudioUnitSetProperty(_outputUnit, param, kAudioUnitScope_Input, 0, &_asbd, size);
-        AudioUnitSetProperty(_timePitchUnit, param, kAudioUnitScope_Input, 0, &_asbd, size);
-        AudioUnitSetProperty(_timePitchUnit, param, kAudioUnitScope_Output, 0, &_asbd, size);
+        AudioUnitSetProperty(_timePitchUnit, param, kAudioUnitScope_Global, 0, &_asbd, size);
     }
 }
 

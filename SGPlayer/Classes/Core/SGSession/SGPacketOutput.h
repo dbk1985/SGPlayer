@@ -41,7 +41,7 @@ typedef NS_ENUM(NSUInteger, SGPacketOutputState) {
 /**
  *
  */
-@property (nonatomic, copy) SGDemuxerOptions *options;
+@property (nonatomic, copy) SGDemuxerOptions *demuxerOptions;
 
 /**
  *
@@ -62,11 +62,6 @@ typedef NS_ENUM(NSUInteger, SGPacketOutputState) {
  *
  */
 @property (nonatomic, copy, readonly) NSArray<SGTrack *> *tracks;
-
-/**
- *
- */
-@property (nonatomic, copy, readonly) NSArray<SGTrack *> *finishedTracks;
 
 /**
  *
@@ -106,17 +101,7 @@ typedef NS_ENUM(NSUInteger, SGPacketOutputState) {
 /**
  *
  */
-- (BOOL)seekToTime:(CMTime)time;
-
-/**
- *
- */
 - (BOOL)seekToTime:(CMTime)time result:(SGSeekResult)result;
-
-/**
- *
- */
-- (BOOL)seekToTime:(CMTime)time toleranceBefor:(CMTime)toleranceBefor toleranceAfter:(CMTime)toleranceAfter result:(SGSeekResult)result;
 
 @end
 

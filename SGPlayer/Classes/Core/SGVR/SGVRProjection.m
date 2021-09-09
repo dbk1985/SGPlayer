@@ -89,12 +89,26 @@
 #endif
     GLKMatrix4 modelMatrix = GLKMatrix4Identity;
     modelMatrix = GLKMatrix4RotateX(modelMatrix, GLKMathDegreesToRadians(self.viewport.y) * (self.viewport.flipY ? -1 : 1));
+
+//    GLKMatrix4 modelViewMatrix =  GLKMatrix4MakeLookAt(0, 0, 0,
+//                                                     sin(self.horizontalDegree) * cos(self.verticalDegree),
+//                                                     sin(self.horizontalDegree) * sin(self.verticalDegree),
+//                                                     cos(self.horizontalDegree),
+//                                                     0, 1, 0);
+    if (self.viewport.guestureEnable) {
+        GLKMatrix4 modelViewMatrix = GLKMatrix4Identity;
+        modelViewMatrix = GLKMatrix4RotateX(modelViewMatrix, self.horizontalDegree);
+        modelViewMatrix = GLKMatrix4RotateY(modelViewMatrix, self.verticalDegree);
+        modelMatrix = GLKMatrix4Multiply(modelMatrix, modelViewMatrix);
+    }
+    
 #if SGPLATFORM_TARGET_OS_IPHONE
     if (self.viewport.sensorEnable) {
         modelMatrix = GLKMatrix4Multiply(modelMatrix, self.sensor.matrix);
     }
 #endif
     modelMatrix = GLKMatrix4RotateY(modelMatrix, GLKMathDegreesToRadians(self.viewport.x) * (self.viewport.flipX ? -1 : 1));
+    
     GLKMatrix4 viewMatrix = GLKMatrix4MakeLookAt(0, 0, 0.0, 0, 0, -1000, 0, 1, 0);
     GLKMatrix4 projectionMatrix = GLKMatrix4MakePerspective(GLKMathDegreesToRadians(self.viewport.degress), aspect, 0.1f, 400.0f);
     GLKMatrix4 modelViewProjectionMatrix = GLKMatrix4Multiply(projectionMatrix, viewMatrix);

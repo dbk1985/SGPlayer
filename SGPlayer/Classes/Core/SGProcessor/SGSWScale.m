@@ -17,16 +17,6 @@
 
 @implementation SGSWScale
 
-+ (BOOL)isSupportedInputFormat:(int)format
-{
-    return sws_isSupportedInput(format) > 0;
-}
-
-+ (BOOL)isSupportedOutputFormat:(int)format
-{
-    return sws_isSupportedOutput(format) > 0;
-}
-
 - (instancetype)init
 {
     if (self = [super init]) {
@@ -69,7 +59,7 @@
                      0,
                      self->_inputDescriptor.height,
                      outputData,
-                     outputLinesize);
+                     outputLinesize);;
 }
 
 @end

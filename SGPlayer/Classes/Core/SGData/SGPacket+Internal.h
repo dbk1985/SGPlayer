@@ -14,11 +14,6 @@
 /**
  *
  */
-+ (instancetype)packet;
-
-/**
- *
- */
 @property (nonatomic, readonly) AVPacket *core;
 
 /**

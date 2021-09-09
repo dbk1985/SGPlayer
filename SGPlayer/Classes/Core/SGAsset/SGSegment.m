@@ -34,19 +34,7 @@
     return obj;
 }
 
-- (NSString *)sharedDemuxerKey
-{
-    NSAssert(NO, @"Subclass only.");
-    return nil;
-}
-
-- (id<SGDemuxable>)newDemuxer
-{
-    NSAssert(NO, @"Subclass only.");
-    return nil;
-}
-
-- (id<SGDemuxable>)newDemuxerWithSharedDemuxer:(id<SGDemuxable>)demuxer
+- (id<SGDemuxable>)newDemuxable
 {
     NSAssert(NO, @"Subclass only.");
     return nil;

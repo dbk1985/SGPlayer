@@ -13,13 +13,6 @@
 @interface SGMutableTrack : SGTrack
 
 /*!
- @property subTracks
- @abstract
-    Indicates the sub tracks.
- */
-@property (nonatomic, copy, readonly) NSArray<SGTrack *> *subTracks;
-
-/*!
  @property segments
  @abstract
     Provides array of SGMutableTrack segments.

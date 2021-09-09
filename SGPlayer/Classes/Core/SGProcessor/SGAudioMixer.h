@@ -19,7 +19,12 @@
 /**
  *
  */
-- (instancetype)initWithTracks:(NSArray<SGTrack *> *)tracks weights:(NSArray<NSNumber *> *)weights;
+- (instancetype)initWithTracks:(NSArray<SGTrack *> *)tracks weights:(NSArray<NSNumber *> *)weights descriptor:(SGAudioDescriptor *)descriptor;
+
+/**
+ *
+ */
+@property (nonatomic, copy, readonly) SGAudioDescriptor *descriptor;
 
 /**
  *

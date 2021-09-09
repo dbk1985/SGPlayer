@@ -7,7 +7,6 @@
 //
 
 #import <Foundation/Foundation.h>
-#import "SGDefines.h"
 
 @interface SGVideoDescriptor : NSObject <NSCopying>
 
@@ -46,32 +45,14 @@
 @property (nonatomic) int height;
 
 /*!
- @property sampleAspectRatio
+ @property colorspace
  @abstract
-    Indicates the sample aspect ratio, 0/1 if unknown/unspecified.
-*/
-@property (nonatomic) SGRational sampleAspectRatio;
-
-/*!
- @property frameSize
- @abstract
-    Indicates the pixel buffer frame size.
-*/
-@property (nonatomic, readonly) SGRational frameSize;
-
-/*!
- @property presentationSize
- @abstract
-    Indicates the best presentation size.
-*/
-@property (nonatomic, readonly) SGRational presentationSize;
-
-/*!
- @method numberOfPlanes
- @abstract
-    Get the number of planes.
+    Indicates the colorspace.
+ 
+ @discussion
+    The value corresponds to AVColorSpace.
  */
-- (int)numberOfPlanes;
+@property (nonatomic) int colorspace;
 
 /*!
  @method isEqualToDescriptor:

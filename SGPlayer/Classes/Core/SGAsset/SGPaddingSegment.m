@@ -27,19 +27,9 @@
     return self;
 }
 
-- (NSString *)sharedDemuxerKey
-{
-    return nil;
-}
-
-- (id<SGDemuxable>)newDemuxer
+- (id<SGDemuxable>)newDemuxable
 {
     return [[SGPaddingDemuxer alloc] initWithDuration:self->_duration];
-}
-
-- (id<SGDemuxable>)newDemuxerWithSharedDemuxer:(id<SGDemuxable>)demuxer
-{
-    return [self newDemuxer];
 }
 
 @end

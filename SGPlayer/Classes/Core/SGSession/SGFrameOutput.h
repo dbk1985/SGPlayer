@@ -72,11 +72,6 @@ typedef NS_ENUM(NSUInteger, SGFrameOutputState) {
 /**
  *
  */
-@property (nonatomic, copy, readonly) NSArray<SGTrack *> *selectedTracks;
-
-/**
- *
- */
 @property (nonatomic, copy, readonly) NSDictionary *metadata;
 
 /**
@@ -117,22 +112,17 @@ typedef NS_ENUM(NSUInteger, SGFrameOutputState) {
 /**
  *
  */
-- (BOOL)seekToTime:(CMTime)time;
-
-/**
- *
- */
 - (BOOL)seekToTime:(CMTime)time result:(SGSeekResult)result;
 
 /**
  *
  */
-- (BOOL)seekToTime:(CMTime)time toleranceBefor:(CMTime)toleranceBefor toleranceAfter:(CMTime)toleranceAfter result:(SGSeekResult)result;
+- (BOOL)selectTracks:(NSArray<SGTrack *> *)tracks;
 
 /**
  *
  */
-- (BOOL)selectTracks:(NSArray<SGTrack *> *)tracks;
+- (NSArray<SGTrack *> *)selectedTracks;
 
 /**
  *
@@ -156,6 +146,6 @@ typedef NS_ENUM(NSUInteger, SGFrameOutputState) {
 /**
  *
  */
-- (void)frameOutput:(SGFrameOutput *)frameOutput didOutputFrames:(NSArray<__kindof SGFrame *> *)frames needsDrop:(BOOL(^)(void))needsDrop;
+- (void)frameOutput:(SGFrameOutput *)frameOutput didOutputFrame:(__kindof SGFrame *)frame;
 
 @end

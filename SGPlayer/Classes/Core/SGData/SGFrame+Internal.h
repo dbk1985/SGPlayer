@@ -8,15 +8,9 @@
 
 #import "SGFrame.h"
 #import "SGAudioFrame.h"
-#import "SGVideoFrame.h"
 #import "SGCodecDescriptor.h"
 
 @interface SGFrame ()
-
-/**
- *
- */
-+ (instancetype)frame;
 
 /**
  *
@@ -36,11 +30,6 @@
 /**
  *
  */
-- (void)fillWithFrame:(SGFrame *)frame;
-
-/**
- *
- */
 - (void)fillWithTimeStamp:(CMTime)timeStamp decodeTimeStamp:(CMTime)decodeTimeStamp duration:(CMTime)duration;
 
 @end
@@ -50,15 +39,6 @@
 /**
  *
  */
-+ (instancetype)frameWithDescriptor:(SGAudioDescriptor *)descriptor numberOfSamples:(int)numberOfSamples;
-
-@end
-
-@interface SGVideoFrame ()
-
-/**
- *
- */
-+ (instancetype)frameWithDescriptor:(SGVideoDescriptor *)descriptor;
++ (instancetype)audioFrameWithDescriptor:(SGAudioDescriptor *)descriptor numberOfSamples:(int)numberOfSamples;
 
 @end

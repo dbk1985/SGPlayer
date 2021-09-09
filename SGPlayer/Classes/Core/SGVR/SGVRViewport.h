@@ -16,5 +16,5 @@
 @property (nonatomic) BOOL flipX;            // Default value is NO.
 @property (nonatomic) BOOL flipY;            // Default value is NO.
 @property (nonatomic) BOOL sensorEnable;     // Default value is YES.
-
+@property (nonatomic) BOOL guestureEnable;     // Default value is NO.
 @end

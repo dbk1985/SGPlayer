@@ -7,7 +7,6 @@
 //
 
 #import "SGVideoProcessor.h"
-#import "SGVideoFrame.h"
 
 @interface SGVideoProcessor ()
 
@@ -24,8 +23,7 @@
 
 - (__kindof SGFrame *)putFrame:(__kindof SGFrame *)frame
 {
-    if (![frame isKindOfClass:[SGVideoFrame class]] ||
-        ![self->_selection.tracks containsObject:frame.track]) {
+    if (![self->_selection.tracks containsObject:frame.track]) {
         [frame unlock];
         return nil;
     }

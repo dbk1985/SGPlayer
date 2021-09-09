@@ -44,6 +44,10 @@ function pull_common() {
 function pull_fork() {
     echo "== pull ffmpeg fork $1 =="
     sh scripts/pull-repo-ref.sh $IJK_FFMPEG_FORK build/source/$FF_PLATFORM/ffmpeg-$1 ${IJK_FFMPEG_LOCAL_REPO}
+    if [[ ! -d build/source/$FF_PLATFORM/ffmpeg-$1 ]]; then
+        #statements
+        mkdir build/source/$FF_PLATFORM/ffmpeg-$1
+    fi
     cd build/source/$FF_PLATFORM/ffmpeg-$1
     git checkout ${IJK_FFMPEG_COMMIT} -B SGPlayer
     cd -

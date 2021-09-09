@@ -13,8 +13,9 @@
 + (NSArray<SGVideoItem *> *)videoItems
 {
     NSURL *i_see_fire = [[NSBundle mainBundle] URLForResource:@"i-see-fire" withExtension:@"mp4"];
+    i_see_fire = [NSURL URLWithString:@"https://1300911161.vod2.myqcloud.com/98afa659vodcq1300911161/26fd571d3701925923124691701/ifrTZ3Ld5EAA.mp4"];
     NSURL *google_help_vr = [[NSBundle mainBundle] URLForResource:@"google-help-vr" withExtension:@"mp4"];
-    
+    google_help_vr = [NSURL URLWithString: @"https://cdnimage.lumingai.com/infos/video/abcdefghigkl1630999142111.MP4"];// [NSURL URLWithString: @"https://cdnimage.lumingai.com/infos/video/abcd1630981605078.mp4"];
     NSMutableArray *items = [NSMutableArray array];
     {
         SGVideoItem *item = [[SGVideoItem alloc] init];

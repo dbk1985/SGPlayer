@@ -38,6 +38,9 @@ function pull_common() {
 function pull_fork() {
     echo "== pull openssl fork $1 =="
     sh scripts/pull-repo-ref.sh $IJK_OPENSSL_FORK build/source/$FF_PLATFORM/openssl-$1 ${IJK_OPENSSL_LOCAL_REPO}
+    if [[ ! -d build/source/$FF_PLATFORM/openssl-$1 ]]; then
+        mkdir build/source/$FF_PLATFORM/openssl-$1
+    fi
     cd build/source/$FF_PLATFORM/openssl-$1
     git checkout ${IJK_OPENSSL_COMMIT} -B SGPlayer
     cd -

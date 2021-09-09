@@ -9,19 +9,7 @@
 #import <Foundation/Foundation.h>
 #import <CoreMedia/CoreMedia.h>
 
-/**
- *
- */
-typedef NS_OPTIONS(NSUInteger, SGDataFlags) {
-    SGDataFlagPadding = 1 << 0,
-};
-
 @protocol SGData <NSObject>
-
-/**
- *
- */
-@property (nonatomic) SGDataFlags flags;
 
 /**
  *

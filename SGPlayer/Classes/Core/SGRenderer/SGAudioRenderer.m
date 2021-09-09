@@ -37,15 +37,9 @@
 @implementation SGAudioRenderer
 
 @synthesize rate = _rate;
-@synthesize pitch = _pitch;
 @synthesize volume = _volume;
 @synthesize delegate = _delegate;
 @synthesize descriptor = _descriptor;
-
-+ (SGAudioDescriptor *)supportedAudioDescriptor
-{
-    return [[SGAudioDescriptor alloc] init];
-}
 
 - (instancetype)init
 {
@@ -58,11 +52,10 @@
     if (self = [super init]) {
         self->_clock = clock;
         self->_rate = 1.0;
-        self->_pitch = 0.0;
         self->_volume = 1.0;
         self->_lock = [[NSLock alloc] init];
         self->_capacity = SGCapacityCreate();
-        self->_descriptor = [SGAudioRenderer supportedAudioDescriptor];
+        self->_descriptor = [[SGAudioDescriptor alloc] init];
     }
     return self;
 }
@@ -125,28 +118,6 @@
     return ret;
 }
 
-- (void)setPitch:(Float64)pitch
-{
-    SGLockCondEXE11(self->_lock, ^BOOL {
-        return self->_pitch != pitch;
-    }, ^SGBlock {
-        self->_pitch = pitch;
-        return nil;
-    }, ^BOOL(SGBlock block) {
-        self->_player.pitch = pitch;
-        return YES;
-    });
-}
-
-- (Float64)pitch
-{
-    __block Float64 ret = 0.0f;
-    SGLockEXE00(self->_lock, ^{
-        ret = self->_pitch;
-    });
-    return ret;
-}
-
 - (void)setVolume:(Float64)volume
 {
     SGLockCondEXE11(self->_lock, ^BOOL {
@@ -182,16 +153,22 @@
 
 - (BOOL)open
 {
+    __block Float64 rate = 1.0;
+    __block Float64 volume = 1.0;
     return SGLockCondEXE11(self->_lock, ^BOOL {
         return self->_flags.state == SGRenderableStateNone;
     }, ^SGBlock {
+        rate = self->_rate;
+        volume = self->_volume;
+        return [self setState:SGRenderableStatePaused];
+    }, ^BOOL(SGBlock block) {
+        block();
         self->_player = [[SGAudioPlayer alloc] init];
         self->_player.delegate = self;
-        self->_player.rate = self->_rate;
-        self->_player.pitch = self->_pitch;
-        self->_player.volume = self->_volume;
-        return [self setState:SGRenderableStatePaused];
-    }, nil);
+        self->_player.volume = volume;
+        self->_player.rate = rate;
+        return YES;
+    });
 }
 
 - (BOOL)close

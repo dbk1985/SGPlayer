@@ -8,7 +8,7 @@
 
 #import "SGPacketOutput.h"
 #import "SGAsset+Internal.h"
-#import "SGOptions.h"
+#import "SGDemuxable.h"
 #import "SGError.h"
 #import "SGMacro.h"
 #import "SGLock.h"
@@ -22,8 +22,7 @@
     } _flags;
     struct {
         CMTime seekTime;
-        CMTime seekToleranceBefor;
-        CMTime seekToleranceAfter;
+        CMTime seekingTime;
         SGSeekResult seekResult;
     } _seekFlags;
 }
@@ -40,11 +39,10 @@
 - (instancetype)initWithAsset:(SGAsset *)asset
 {
     if (self = [super init]) {
+        self->_demuxable = [asset newDemuxable];
+        self->_demuxable.delegate = self;
         self->_lock = [[NSLock alloc] init];
         self->_wakeup = [[NSCondition alloc] init];
-        self->_demuxable = [asset newDemuxer];
-        self->_demuxable.delegate = self;
-        self->_demuxable.options = [SGOptions sharedOptions].demuxer.copy;
     }
     return self;
 }
@@ -66,7 +64,6 @@
 SGGet0Map(CMTime, duration, self->_demuxable)
 SGGet0Map(NSDictionary *, metadata, self->_demuxable)
 SGGet0Map(NSArray<SGTrack *> *, tracks, self->_demuxable)
-SGGet0Map(NSArray<SGTrack *> *, finishedTracks, self->_demuxable)
 SGGet0Map(SGDemuxerOptions *, options, self->_demuxable)
 SGSet1Map(void, setOptions, SGDemuxerOptions *, self->_demuxable)
 
@@ -165,24 +162,13 @@ SGSet1Map(void, setOptions, SGDemuxerOptions *, self->_demuxable)
     return [self->_demuxable seekable] == nil;
 }
 
-- (BOOL)seekToTime:(CMTime)time
-{
-    return [self seekToTime:time result:nil];
-}
-
 - (BOOL)seekToTime:(CMTime)time result:(SGSeekResult)result
-{
-    return [self seekToTime:time toleranceBefor:kCMTimeInvalid toleranceAfter:kCMTimeInvalid result:result];
-}
-
-- (BOOL)seekToTime:(CMTime)time toleranceBefor:(CMTime)toleranceBefor toleranceAfter:(CMTime)toleranceAfter result:(SGSeekResult)result
 {
     if (![self seekable]) {
         return NO;
     }
     return SGLockCondEXE10(self->_lock, ^BOOL {
         return
-        self->_flags.state == SGPacketOutputStateOpened ||
         self->_flags.state == SGPacketOutputStateReading ||
         self->_flags.state == SGPacketOutputStatePaused ||
         self->_flags.state == SGPacketOutputStateSeeking ||
@@ -195,12 +181,10 @@ SGSet1Map(void, setOptions, SGDemuxerOptions *, self->_demuxable)
             b1 = ^{
                 lastSeekResult(lastSeekTime,
                                SGCreateError(SGErrorCodePacketOutputCancelSeek,
-                                             SGActionCodePacketOutputSeek));
+                                              SGActionCodePacketOutputSeek));
             };
         }
         self->_seekFlags.seekTime = time;
-        self->_seekFlags.seekToleranceBefor = toleranceBefor;
-        self->_seekFlags.seekToleranceAfter = toleranceAfter;
         self->_seekFlags.seekResult = [result copy];
         b2 = [self setState:SGPacketOutputStateSeeking];
         return ^{
@@ -243,14 +227,13 @@ SGSet1Map(void, setOptions, SGDemuxerOptions *, self->_demuxable)
                 [self->_wakeup unlock];
                 continue;
             } else if (self->_flags.state == SGPacketOutputStateSeeking) {
-                CMTime seekingTime = self->_seekFlags.seekTime;
-                CMTime seekingToleranceBefor = self->_seekFlags.seekToleranceBefor;
-                CMTime seekingToleranceAfter = self->_seekFlags.seekToleranceAfter;
+                self->_seekFlags.seekingTime = self->_seekFlags.seekTime;
+                CMTime seeking_time = self->_seekFlags.seekingTime;
                 [self->_lock unlock];
-                NSError *error = [self->_demuxable seekToTime:seekingTime toleranceBefor:seekingToleranceBefor toleranceAfter:seekingToleranceAfter];
+                NSError *error = [self->_demuxable seekToTime:seeking_time];
                 [self->_lock lock];
                 if (self->_flags.state == SGPacketOutputStateSeeking &&
-                    CMTimeCompare(self->_seekFlags.seekTime, seekingTime) != 0) {
+                    CMTimeCompare(self->_seekFlags.seekTime, seeking_time) != 0) {
                     [self->_lock unlock];
                     continue;
                 }
@@ -266,8 +249,7 @@ SGSet1Map(void, setOptions, SGDemuxerOptions *, self->_demuxable)
                     b2 = [self setState:SGPacketOutputStateReading];
                 }
                 self->_seekFlags.seekTime = kCMTimeZero;
-                self->_seekFlags.seekToleranceBefor = kCMTimeInvalid;
-                self->_seekFlags.seekToleranceAfter = kCMTimeInvalid;
+                self->_seekFlags.seekingTime = kCMTimeZero;
                 self->_seekFlags.seekResult = nil;
                 [self->_lock unlock];
                 b1(); b2();

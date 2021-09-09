@@ -11,4 +11,9 @@
 
 @interface SGAudioProcessor : NSObject <SGProcessor>
 
+/**
+ *
+ */
+- (void)setDescriptor:(SGAudioDescriptor *)descriptor;
+
 @end

@@ -26,6 +26,7 @@
 - (instancetype)init
 {
     if (self = [super init]) {
+        self->_type = SGCodecTypeDecode;
         self->_scale = CMTimeMake(1, 1);
         self->_timebase = AV_TIME_BASE_Q;
         self->_timeRange = CMTimeRangeMake(kCMTimeNegativeInfinity, kCMTimePositiveInfinity);
@@ -110,7 +111,7 @@
     if (!descriptor) {
         return NO;
     }
-    if (descriptor->_track != self->_track) {
+    if (descriptor.track != self->_track) {
         return NO;
     }
     if (descriptor->_codecpar != self->_codecpar) {

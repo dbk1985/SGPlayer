@@ -10,7 +10,6 @@
 #import "SGFrame+Internal.h"
 #import "SGPacket+Internal.h"
 #import "SGDescriptor+Internal.h"
-#import "SGAudioFormatter.h"
 #import "SGCodecContext.h"
 #import "SGAudioFrame.h"
 #import "SGSonic.h"
@@ -21,14 +20,11 @@
     struct {
         BOOL needsAlignment;
         BOOL needsResetSonic;
-        BOOL sessionFinished;
         int64_t nextTimeStamp;
-        CMTime lastEndTimeStamp;
     } _flags;
 }
 
 @property (nonatomic, strong, readonly) SGSonic *sonic;
-@property (nonatomic, strong, readonly) SGAudioFormatter *formatter;
 @property (nonatomic, strong, readonly) SGCodecContext *codecContext;
 @property (nonatomic, strong, readonly) SGCodecDescriptor *codecDescriptor;
 @property (nonatomic, strong, readonly) SGAudioDescriptor *audioDescriptor;
@@ -39,11 +35,6 @@
 
 @synthesize options = _options;
 
-- (void)dealloc
-{
-    [self destroy];
-}
-
 - (void)setup
 {
     self->_flags.nextTimeStamp = 0;
@@ -51,9 +42,8 @@
     self->_flags.needsResetSonic = YES;
     self->_codecContext = [[SGCodecContext alloc] initWithTimebase:self->_codecDescriptor.timebase
                                                           codecpar:self->_codecDescriptor.codecpar
-                                                    frameGenerator:^__kindof SGFrame *{
-        return [SGAudioFrame frame];
-    }];
+                                                        frameClass:[SGAudioFrame class]
+                                                    frameReuseName:[SGAudioFrame commonReuseName]];
     self->_codecContext.options = self->_options;
     [self->_codecContext open];
 }
@@ -63,12 +53,9 @@
     self->_flags.nextTimeStamp = 0;
     self->_flags.needsAlignment = YES;
     self->_flags.needsResetSonic = YES;
-    self->_flags.sessionFinished = NO;
-    self->_flags.lastEndTimeStamp = kCMTimeInvalid;
     [self->_codecContext close];
     self->_codecContext = nil;
     self->_audioDescriptor = nil;
-    self->_formatter = nil;
 }
 
 #pragma mark - Control
@@ -78,99 +65,58 @@
     self->_flags.nextTimeStamp = 0;
     self->_flags.needsAlignment = YES;
     self->_flags.needsResetSonic = YES;
-    self->_flags.sessionFinished = NO;
-    self->_flags.lastEndTimeStamp = kCMTimeInvalid;
     [self->_codecContext flush];
-    [self->_formatter flush];
 }
 
 - (NSArray<__kindof SGFrame *> *)decode:(SGPacket *)packet
 {
-    NSMutableArray *frames = [NSMutableArray array];
+    NSMutableArray *ret = [NSMutableArray array];
     SGCodecDescriptor *cd = packet.codecDescriptor;
     NSAssert(cd, @"Invalid codec descriptor.");
-    BOOL isEqual = [cd isEqualToDescriptor:self->_codecDescriptor];
-    BOOL isEqualCodec = [cd isEqualCodecContextToDescriptor:self->_codecDescriptor];
-    if (!isEqual) {
+    if (![cd isEqualCodecContextToDescriptor:self->_codecDescriptor]) {
         NSArray<SGFrame *> *objs = [self finish];
         for (SGFrame *obj in objs) {
-            [frames addObject:obj];
+            [ret addObject:obj];
         }
         self->_codecDescriptor = [cd copy];
-        if (isEqualCodec) {
-            [self flush];
-        } else {
-            [self destroy];
-            [self setup];
-        }
-    }
-    if (self->_flags.sessionFinished) {
-        return nil;
+        [self destroy];
+        [self setup];
     }
     [cd fillToDescriptor:self->_codecDescriptor];
-    if (packet.flags & SGDataFlagPadding) {
-        SGAudioDescriptor *ad = self->_audioDescriptor;
-        if (ad == nil) {
-            ad = [[SGAudioDescriptor alloc] init];
+    switch (packet.codecDescriptor.type) {
+        case SGCodecTypeDecode: {
+            NSArray<SGFrame *> *objs = [self processPacket:packet];
+            for (SGFrame *obj in objs) {
+                [ret addObject:obj];
+            }
         }
-        CMTime start = packet.timeStamp;
-        CMTime duration = packet.duration;
-        int nb_samples = (int)CMTimeConvertScale(duration, ad.sampleRate, kCMTimeRoundingMethod_RoundTowardZero).value;
-        if (nb_samples > 0) {
-            duration = CMTimeMake(nb_samples, ad.sampleRate);
-            SGAudioFrame *obj = [SGAudioFrame frameWithDescriptor:ad numberOfSamples:nb_samples];
-            SGCodecDescriptor *cd = [[SGCodecDescriptor alloc] init];
-            cd.track = packet.track;
-            cd.metadata = packet.metadata;
-            [obj setCodecDescriptor:cd];
-            [obj fillWithTimeStamp:start decodeTimeStamp:start duration:duration];
-            [frames addObject:obj];
+            break;
+        case SGCodecTypePadding: {
+            SGAudioDescriptor *ad = self->_audioDescriptor;
+            if (ad == nil) {
+                ad = [[SGAudioDescriptor alloc] init];
+            }
+            CMTime start = packet.timeStamp;
+            CMTime duration = packet.duration;
+            int nb_samples = (int)CMTimeConvertScale(duration, ad.sampleRate, kCMTimeRoundingMethod_RoundTowardZero).value;
+            if (nb_samples > 0) {
+                duration = CMTimeMake(nb_samples, ad.sampleRate);
+                SGAudioFrame *obj = [SGAudioFrame audioFrameWithDescriptor:ad numberOfSamples:nb_samples];
+                SGCodecDescriptor *cd = [[SGCodecDescriptor alloc] init];
+                cd.track = packet.track;
+                [obj setCodecDescriptor:cd];
+                [obj fillWithTimeStamp:start decodeTimeStamp:start duration:duration];
+                [ret addObject:obj];
+            }
         }
-    } else {
-        NSArray<SGFrame *> *objs = [self processPacket:packet];
-        for (SGFrame *obj in objs) {
-            [frames addObject:obj];
-        }
+            break;
     }
-    if (frames.count > 0) {
-        SGFrame *obj = frames.lastObject;
-        self->_flags.lastEndTimeStamp = CMTimeAdd(obj.timeStamp, obj.duration);
-    }
-    return frames;
+    return ret;
 }
 
 - (NSArray<__kindof SGFrame *> *)finish
 {
-    if (self->_flags.sessionFinished) {
-        return nil;
-    }
-    NSArray<SGFrame *> *frames = [self processPacket:nil];
-    if (frames.count > 0) {
-        self->_flags.lastEndTimeStamp = CMTimeAdd(frames.lastObject.timeStamp, frames.lastObject.duration);
-    }
-    CMTime lastEnd = self->_flags.lastEndTimeStamp;
-    CMTimeRange timeRange = self->_codecDescriptor.timeRange;
-    if (CMTIME_IS_NUMERIC(lastEnd) &&
-        CMTIME_IS_NUMERIC(timeRange.start) &&
-        CMTIME_IS_NUMERIC(timeRange.duration)) {
-        CMTime end = CMTimeRangeGetEnd(timeRange);
-        CMTime duration = CMTimeSubtract(end, lastEnd);
-        SGAudioDescriptor *ad = self->_audioDescriptor;
-        int nb_samples = (int)CMTimeConvertScale(duration, ad.sampleRate, kCMTimeRoundingMethod_RoundTowardZero).value;
-        if (nb_samples > 0) {
-            duration = CMTimeMake(nb_samples, ad.sampleRate);
-            SGAudioFrame *obj = [SGAudioFrame frameWithDescriptor:ad numberOfSamples:nb_samples];
-            SGCodecDescriptor *cd = [[SGCodecDescriptor alloc] init];
-            cd.track = self->_codecDescriptor.track;
-            cd.metadata = self->_codecDescriptor.metadata;
-            [obj setCodecDescriptor:cd];
-            [obj fillWithTimeStamp:lastEnd decodeTimeStamp:lastEnd duration:duration];
-            NSMutableArray<SGFrame *> *newFrames = [NSMutableArray arrayWithArray:frames];
-            [newFrames addObject:obj];
-            frames = [newFrames copy];
-        }
-    }
-    return frames;
+    return [self processPacket:nil];
 }
 
 #pragma mark - Process
@@ -181,16 +127,15 @@
         return nil;
     }
     SGCodecDescriptor *cd = self->_codecDescriptor;
-    NSArray *frames = [self->_codecContext decode:packet];
-    frames = [self processFrames:frames done:!packet];
-    frames = [self clipFrames:frames timeRange:cd.timeRange];
-    frames = [self formatFrames:frames];
-    return frames;
+    NSArray *objs = [self->_codecContext decode:packet];
+    objs = [self processFrames:objs done:!packet];
+    objs = [self clipFrames:objs timeRange:cd.timeRange];
+    return objs;
 }
 
 - (NSArray<__kindof SGFrame *> *)processFrames:(NSArray<__kindof SGFrame *> *)frames done:(BOOL)done
 {
-    NSMutableArray<__kindof SGFrame *> *ret = [NSMutableArray array];
+    NSMutableArray *ret = [NSMutableArray array];
     for (SGAudioFrame *obj in frames) {
         AVFrame *frame = obj.core;
         if (self->_audioDescriptor == nil) {
@@ -232,10 +177,8 @@
 
 - (NSArray<__kindof SGFrame *> *)clipFrames:(NSArray<__kindof SGFrame *> *)frames timeRange:(CMTimeRange)timeRange
 {
-    if (frames.count <= 0) {
-        return nil;
-    }
-    if (!SGCMTimeIsValid(timeRange.start, NO)) {
+    if (!SGCMTimeIsValid(timeRange.start, NO) ||
+        !SGCMTimeIsValid(timeRange.duration, NO)) {
         return frames;
     }
     NSMutableArray *ret = [NSMutableArray array];
@@ -244,8 +187,7 @@
             [obj unlock];
             continue;
         }
-        if (SGCMTimeIsValid(timeRange.duration, NO) &&
-            CMTimeCompare(obj.timeStamp, CMTimeRangeGetEnd(timeRange)) >= 0) {
+        if (CMTimeCompare(obj.timeStamp, CMTimeRangeGetEnd(timeRange)) >= 0) {
             [obj unlock];
             continue;
         }
@@ -257,70 +199,32 @@
             int nb_samples = (int)CMTimeConvertScale(duration, ad.sampleRate, kCMTimeRoundingMethod_RoundTowardZero).value;
             if (nb_samples > 0) {
                 duration = CMTimeMake(nb_samples, ad.sampleRate);
-                SGAudioFrame *obj1 = [SGAudioFrame frameWithDescriptor:ad numberOfSamples:nb_samples];
+                SGAudioFrame *obj1 = [SGAudioFrame audioFrameWithDescriptor:ad numberOfSamples:nb_samples];
                 SGCodecDescriptor *cd = [[SGCodecDescriptor alloc] init];
                 cd.track = obj.track;
-                cd.metadata = obj.metadata;
                 [obj1 setCodecDescriptor:cd];
                 [obj1 fillWithTimeStamp:start decodeTimeStamp:start duration:duration];
                 [ret addObject:obj1];
             }
         }
-        if (SGCMTimeIsValid(timeRange.duration, NO)) {
-            CMTime start = obj.timeStamp;
-            CMTime duration = CMTimeSubtract(CMTimeRangeGetEnd(timeRange), start);
-            int nb_samples = (int)CMTimeConvertScale(duration, ad.sampleRate, kCMTimeRoundingMethod_RoundTowardZero).value;
-            if (nb_samples < obj.numberOfSamples) {
-                self->_flags.sessionFinished = YES;
-                duration = CMTimeMake(nb_samples, ad.sampleRate);
-                SGAudioFrame *obj1 = [SGAudioFrame frameWithDescriptor:ad numberOfSamples:nb_samples];
-                for (int i = 0; i < ad.numberOfPlanes; i++) {
-                    memcpy(obj1.core->data[i], obj.core->data[i], obj1.core->linesize[i]);
-                }
-                SGCodecDescriptor *cd = [[SGCodecDescriptor alloc] init];
-                cd.track = obj.track;
-                cd.metadata = obj.metadata;
-                [obj1 setCodecDescriptor:cd];
-                [obj1 fillWithTimeStamp:start decodeTimeStamp:start duration:duration];
-                [ret addObject:obj1];
-                [obj unlock];
-                continue;
-            } else if (nb_samples == obj.numberOfSamples) {
-                self->_flags.sessionFinished = YES;
+        CMTime start = obj.timeStamp;
+        CMTime duration = CMTimeSubtract(CMTimeRangeGetEnd(timeRange), obj.timeStamp);
+        int nb_samples = (int)CMTimeConvertScale(duration, ad.sampleRate, kCMTimeRoundingMethod_RoundTowardZero).value;
+        if (nb_samples < obj.numberOfSamples) {
+            duration = CMTimeMake(nb_samples, ad.sampleRate);
+            SGAudioFrame *obj1 = [SGAudioFrame audioFrameWithDescriptor:ad numberOfSamples:nb_samples];
+            for (int i = 0; i < ad.numberOfPlanes; i++) {
+                memcpy(obj1.core->data[i], obj.core->data[i], obj1.core->linesize[i]);
             }
-        }
-        [ret addObject:obj];
-    }
-    return ret;
-}
-
-- (NSArray<__kindof SGFrame *> *)formatFrames:(NSArray<__kindof SGFrame *> *)frames
-{
-    NSArray<SGAudioDescriptor *> *descriptors = self->_options.supportedAudioDescriptors;
-    if (descriptors.count <= 0) {
-        return frames;
-    }
-    NSMutableArray *ret = [NSMutableArray array];
-    for (SGAudioFrame *obj in frames) {
-        BOOL supported = NO;
-        for (SGAudioDescriptor *descriptor in descriptors) {
-            if ([obj.descriptor isEqualToDescriptor:descriptor]) {
-                supported = YES;
-                break;
-            }
-        }
-        if (supported) {
-            [ret addObject:obj];
+            SGCodecDescriptor *cd = [[SGCodecDescriptor alloc] init];
+            cd.track = obj.track;
+            [obj1 setCodecDescriptor:cd];
+            [obj1 fillWithTimeStamp:start decodeTimeStamp:start duration:duration];
+            [ret addObject:obj1];
+            [obj unlock];
             continue;
         }
-        if (!self->_formatter) {
-            self->_formatter = [[SGAudioFormatter alloc] init];
-            self->_formatter.descriptor = descriptors.firstObject;
-        }
-        SGAudioFrame *newObj = [self->_formatter format:obj];
-        if (newObj) {
-            [ret addObject:newObj];
-        }
+        [ret addObject:obj];
     }
     return ret;
 }
@@ -333,11 +237,10 @@
     CMTime start = CMTimeMake(pts * cd.timebase.num, cd.timebase.den);
     CMTime duration = CMTimeMake(nb_samples, ad.sampleRate);
     start = [cd convertTimeStamp:start];
-    SGAudioFrame *obj = [SGAudioFrame frameWithDescriptor:ad numberOfSamples:nb_samples];
+    SGAudioFrame *obj = [SGAudioFrame audioFrameWithDescriptor:ad numberOfSamples:nb_samples];
     [self->_sonic read:obj.core->data nb_samples:nb_samples];
     SGCodecDescriptor *cd1 = [[SGCodecDescriptor alloc] init];
     cd1.track = cd.track;
-    cd1.metadata = cd.metadata;
     [obj setCodecDescriptor:cd1];
     [obj fillWithTimeStamp:start decodeTimeStamp:start duration:duration];
     return obj;

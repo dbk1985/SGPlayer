@@ -12,6 +12,10 @@
 
 @interface SGVRProjection : NSObject
 
+
+@property (nonatomic, assign) float horizontalDegree;
+@property (nonatomic, assign) float verticalDegree;
+
 @property (nonatomic, strong) SGVRViewport * viewport;
 
 - (BOOL)ready;

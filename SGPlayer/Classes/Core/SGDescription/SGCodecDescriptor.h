@@ -11,7 +11,17 @@
 #import "SGFFmpeg.h"
 #import "SGTrack.h"
 
+typedef NS_ENUM(NSUInteger, SGCodecType) {
+    SGCodecTypeDecode  = 0,
+    SGCodecTypePadding = 1,
+};
+
 @interface SGCodecDescriptor : NSObject <NSCopying>
+
+/**
+ *
+ */
+@property (nonatomic) SGCodecType type;
 
 /**
  *

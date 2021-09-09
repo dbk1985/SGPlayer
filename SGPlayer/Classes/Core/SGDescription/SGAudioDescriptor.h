@@ -56,7 +56,7 @@
 - (int)bytesPerSample;
 
 /*!
- @method numberOfPlanes
+ @method bytesPerSample
  @abstract
     Get the number of planes.
  */

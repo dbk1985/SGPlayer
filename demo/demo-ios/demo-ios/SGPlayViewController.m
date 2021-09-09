@@ -17,6 +17,7 @@
 @property (weak, nonatomic) IBOutlet UILabel *durationLabel;
 @property (weak, nonatomic) IBOutlet UILabel *currentTimeLabel;
 @property (weak, nonatomic) IBOutlet UISlider *progressSilder;
+@property (weak, nonatomic) IBOutlet UIView *rotateView;
 
 @end
 
@@ -41,9 +42,16 @@
     [super viewDidLoad];
     
     self.player.videoRenderer.view = self.view;
+    self.player.videoRenderer.viewport.sensorEnable = NO;
+    self.player.videoRenderer.viewport.guestureEnable = YES;
     self.player.videoRenderer.displayMode = self.videoItem.displayMode;
+    self.player.videoRenderer.gestureRoationChanged = ^(float hDegree, float vDegree) {
+        self.rotateView.transform = CGAffineTransformMakeRotation(vDegree);
+    };
+    
     [self.player replaceWithAsset:self.videoItem.asset];
     [self.player play];
+    
 }
 
 #pragma mark - SGPlayer Notifications

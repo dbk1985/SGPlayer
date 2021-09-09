@@ -14,16 +14,6 @@
 /**
  *
  */
-- (NSString *)sharedDemuxerKey;
-
-/**
- *
- */
-- (id<SGDemuxable>)newDemuxer;
-
-/**
- *
- */
-- (id<SGDemuxable>)newDemuxerWithSharedDemuxer:(id<SGDemuxable>)demuxer;
+- (id<SGDemuxable>)newDemuxable;
 
 @end

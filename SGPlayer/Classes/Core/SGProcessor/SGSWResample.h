@@ -32,9 +32,4 @@
  */
 - (int)read:(uint8_t **)data nb_samples:(int)nb_samples;
 
-/**
- *
- */
-- (int)delay;
-
 @end

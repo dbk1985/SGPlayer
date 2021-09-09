@@ -33,7 +33,6 @@
 
 @synthesize tracks = _tracks;
 @synthesize duration = _duration;
-@synthesize finishedTracks = _finishedTracks;
 
 - (instancetype)initWithDemuxable:(id<SGDemuxable>)demuxable index:(NSInteger)index timeRange:(CMTimeRange)timeRange scale:(CMTime)scale
 {
@@ -42,7 +41,7 @@
         self->_scale = scale;
         self->_index = index;
         self->_demuxable = demuxable;
-        self->_timeRange = SGCMTimeRangeFitting(timeRange);
+        self->_timeRange = SGCMTimeRangeFit(timeRange);
         self->_packetQueue = [[SGObjectQueue alloc] init];
     }
     return self;
@@ -60,11 +59,6 @@ SGGet0Map(NSError *, seekable, self->_demuxable)
 
 #pragma mark - Control
 
-- (id<SGDemuxable>)sharedDemuxer
-{
-    return [self->_demuxable sharedDemuxer];
-}
-
 - (NSError *)open
 {
     NSError *error = [self->_demuxable open];
@@ -78,14 +72,8 @@ SGGet0Map(NSError *, seekable, self->_demuxable)
             break;
         }
     }
-    CMTime start = self->_timeRange.start;
-    if (!CMTIME_IS_NUMERIC(start)) {
-        start = kCMTimeZero;
-    }
-    CMTime duration = self->_timeRange.duration;
-    if (!CMTIME_IS_NUMERIC(duration)) {
-        duration = CMTimeSubtract(self->_demuxable.duration, start);
-    }
+    CMTime start = CMTimeMaximum(self->_timeRange.start, kCMTimeZero);
+    CMTime duration = CMTimeMinimum(self->_timeRange.duration, CMTimeSubtract(self->_demuxable.duration, start));
     self->_timeRange = CMTimeRangeMake(start, duration);
     self->_duration = SGCMTimeMultiply(duration, self->_scale);
     self->_scaleLayout = [[SGTimeLayout alloc] initWithScale:self->_scale];
@@ -95,17 +83,12 @@ SGGet0Map(NSError *, seekable, self->_demuxable)
 
 - (NSError *)seekToTime:(CMTime)time
 {
-    return [self seekToTime:time toleranceBefor:kCMTimeInvalid toleranceAfter:kCMTimeInvalid];
-}
-
-- (NSError *)seekToTime:(CMTime)time toleranceBefor:(CMTime)toleranceBefor toleranceAfter:(CMTime)toleranceAfter
-{
     if (!CMTIME_IS_NUMERIC(time)) {
         return SGCreateError(SGErrorCodeInvlidTime, SGActionCodeFormatSeekFrame);
     }
     time = [self->_scaleLayout reconvertTimeStamp:time];
     time = [self->_offsetLayout reconvertTimeStamp:time];
-    NSError *error = [self->_demuxable seekToTime:time toleranceBefor:toleranceBefor toleranceAfter:toleranceAfter];
+    NSError *error = [self->_demuxable seekToTime:time];
     if (error) {
         return error;
     }
@@ -113,16 +96,15 @@ SGGet0Map(NSError *, seekable, self->_demuxable)
     self->_flags.finished = NO;
     self->_flags.inputting = NO;
     self->_flags.outputting = NO;
-    self->_finishedTracks = nil;
     return nil;
 }
 
 - (NSError *)nextPacket:(SGPacket **)packet
 {
-    if (self->_overgop) {
-        return [self nextPacketInternalOvergop:packet];
+    if (!self->_overgop) {
+        return [self nextPacketInternal:packet];
     }
-    return [self nextPacketInternal:packet];
+    return [self nextPacketInternalOvergop:packet];
 }
 
 - (NSError *)nextPacketInternal:(SGPacket **)packet
@@ -144,7 +126,7 @@ SGGet0Map(NSError *, seekable, self->_demuxable)
         }
         if (CMTimeCompare(pkt.timeStamp, CMTimeRangeGetEnd(self->_timeRange)) >= 0) {
             [pkt unlock];
-            error = SGCreateError(SGErrorCodeDemuxerEndOfFile, SGActionCodeURLDemuxerFunnelNext);
+            error = SGCreateError(SGErrorCodeURLDemuxerFunnelFinished, SGActionCodeURLDemuxerFunnelNext);
             break;
         }
         [pkt.codecDescriptor appendTimeLayout:self->_offsetLayout];
@@ -153,9 +135,6 @@ SGGet0Map(NSError *, seekable, self->_demuxable)
         [pkt fill];
         *packet = pkt;
         break;
-    }
-    if (error.code == SGErrorCodeDemuxerEndOfFile) {
-        self->_finishedTracks = self->_tracks.copy;
     }
     return error;
 }
@@ -177,7 +156,7 @@ SGGet0Map(NSError *, seekable, self->_demuxable)
             }
         }
         if (self->_flags.finished) {
-            error = SGCreateError(SGErrorCodeDemuxerEndOfFile, SGActionCodeURLDemuxerFunnelNext);
+            error = SGCreateError(SGErrorCodeURLDemuxerFunnelFinished, SGActionCodeURLDemuxerFunnelNext);
             break;
         }
         error = [self->_demuxable nextPacket:&pkt];
@@ -219,9 +198,6 @@ SGGet0Map(NSError *, seekable, self->_demuxable)
         [self->_packetQueue putObjectSync:pkt];
         [pkt unlock];
         continue;
-    }
-    if (error.code == SGErrorCodeDemuxerEndOfFile) {
-        self->_finishedTracks = self->_tracks.copy;
     }
     return error;
 }

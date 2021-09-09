@@ -21,14 +21,7 @@
 
 @implementation SGPacket
 
-@synthesize flags = _flags;
 @synthesize reuseName = _reuseName;
-
-+ (instancetype)packet
-{
-    static NSString *name = @"SGPacket";
-    return [[SGObjectPool sharedPool] objectWithClass:[self class] reuseName:name];
-}
 
 - (instancetype)init
 {
@@ -63,6 +56,16 @@
 
 #pragma mark - Setter & Getter
 
++ (NSString *)commonReuseName
+{
+    static NSString *ret = nil;
+    static dispatch_once_t onceToken;
+    dispatch_once(&onceToken, ^{
+        ret = NSStringFromClass(self.class);
+    });
+    return ret;
+}
+
 #pragma mark - Data
 
 - (void)lock
@@ -75,7 +78,6 @@
 - (void)unlock
 {
     [self->_lock lock];
-    NSAssert(self->_lockingCount > 0, @"SGPacket, Invalid locking count");
     self->_lockingCount -= 1;
     BOOL comeback = self->_lockingCount == 0;
     [self->_lock unlock];
@@ -90,7 +92,6 @@
         av_packet_unref(self->_core);
     }
     self->_size = 0;
-    self->_flags = 0;
     self->_track = nil;
     self->_duration = kCMTimeZero;
     self->_timeStamp = kCMTimeZero;

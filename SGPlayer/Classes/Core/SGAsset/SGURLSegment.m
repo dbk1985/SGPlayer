@@ -38,22 +38,10 @@
     return self;
 }
 
-- (NSString *)sharedDemuxerKey
+- (id<SGDemuxable>)newDemuxable
 {
-    return self->_URL.isFileURL ? self->_URL.path : self->_URL.absoluteString;
-}
-
-- (id<SGDemuxable>)newDemuxer
-{
-    return [self newDemuxerWithSharedDemuxer:nil];
-}
-
-- (id<SGDemuxable>)newDemuxerWithSharedDemuxer:(id<SGDemuxable>)demuxer
-{
-    if (!demuxer) {
-        demuxer = [[SGURLDemuxer alloc] initWithURL:self->_URL];
-    }
-    SGExtractingDemuxer *obj = [[SGExtractingDemuxer alloc] initWithDemuxable:demuxer index:self->_index timeRange:self->_timeRange scale:self->_scale];
+    SGURLDemuxer *demuxable = [[SGURLDemuxer alloc] initWithURL:self->_URL];
+    SGExtractingDemuxer *obj = [[SGExtractingDemuxer alloc] initWithDemuxable:demuxable index:self->_index timeRange:self->_timeRange scale:self->_scale];
     return obj;
 }
 

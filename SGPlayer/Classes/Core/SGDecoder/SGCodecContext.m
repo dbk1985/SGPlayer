@@ -7,19 +7,21 @@
 //
 
 #import "SGCodecContext.h"
-#import "SGPacket+Internal.h"
 #import "SGFrame+Internal.h"
-#import "SGMapping.h"
+#import "SGPacket+Internal.h"
 #import "SGOptions.h"
+#import "SGObjectPool.h"
+#import "SGMapping.h"
 #import "SGError.h"
 #import "SGMacro.h"
 
 @interface SGCodecContext ()
 
-@property (nonatomic, readonly) AVRational timebase;
-@property (nonatomic, readonly) AVCodecParameters *codecpar;
-@property (nonatomic, readonly) AVCodecContext *codecContext;
-@property (nonatomic, copy, readonly) __kindof SGFrame *(^frameGenerator)(void);
+@property (nonatomic, copy, readonly) Class frameClass;
+@property (nonatomic, copy, readonly) NSString *frameReuseName;
+@property (nonatomic, assign, readonly) AVRational timebase;
+@property (nonatomic, assign, readonly) AVCodecParameters *codecpar;
+@property (nonatomic, assign, readonly) AVCodecContext *codecContext;
 
 @end
 
@@ -27,12 +29,14 @@
 
 - (instancetype)initWithTimebase:(AVRational)timebase
                         codecpar:(AVCodecParameters *)codecpar
-                  frameGenerator:(__kindof SGFrame *(^)(void))frameGenerator
+                      frameClass:(Class)frameClass
+                  frameReuseName:(NSString *)frameReuseName
 {
     if (self = [super init]) {
         self->_timebase = timebase;
         self->_codecpar = codecpar;
-        self->_frameGenerator = frameGenerator;
+        self->_frameClass = frameClass;
+        self->_frameReuseName = frameReuseName;
         self->_options = [SGOptions sharedOptions].decoder.copy;
     }
     return self;
@@ -83,7 +87,7 @@
     }
     NSMutableArray *array = [NSMutableArray array];
     while (result != AVERROR(EAGAIN)) {
-        __kindof SGFrame *frame = self->_frameGenerator();
+        __kindof SGFrame *frame = [[SGObjectPool sharedPool] objectWithClass:self->_frameClass reuseName:self->_frameReuseName];
         result = avcodec_receive_frame(self->_codecContext, frame.core);
         if (result < 0) {
             [frame unlock];

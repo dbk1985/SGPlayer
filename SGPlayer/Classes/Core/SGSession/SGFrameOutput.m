@@ -11,7 +11,6 @@
 #import "SGVideoDecoder.h"
 #import "SGPacketOutput.h"
 #import "SGDecodeLoop.h"
-#import "SGOptions.h"
 #import "SGMacro.h"
 #import "SGLock.h"
 
@@ -30,6 +29,7 @@
 @property (nonatomic, strong, readonly) SGDecodeLoop *audioDecoder;
 @property (nonatomic, strong, readonly) SGDecodeLoop *videoDecoder;
 @property (nonatomic, strong, readonly) SGPacketOutput *packetOutput;
+@property (nonatomic, strong, readonly) NSArray<SGTrack *> *selectedTracks;
 @property (nonatomic, strong, readonly) NSArray<SGTrack *> *finishedTracks;
 
 @end
@@ -43,9 +43,9 @@
 {
     if (self = [super init]) {
         self->_lock = [[NSLock alloc] init];
-        self->_audioDecoder = [[SGDecodeLoop alloc] initWithDecoderClass:[SGAudioDecoder class]];
+        self->_audioDecoder = [[SGDecodeLoop alloc] initWithDecodableClass:[SGAudioDecoder class]];
         self->_audioDecoder.delegate = self;
-        self->_videoDecoder = [[SGDecodeLoop alloc] initWithDecoderClass:[SGVideoDecoder class]];
+        self->_videoDecoder = [[SGDecodeLoop alloc] initWithDecodableClass:[SGVideoDecoder class]];
         self->_videoDecoder.delegate = self;
         self->_packetOutput = [[SGPacketOutput alloc] initWithAsset:asset];
         self->_packetOutput.delegate = self;
@@ -53,7 +53,6 @@
             self->_capacityFlags[i] = NO;
             self->_capacities[i] = SGCapacityCreate();
         }
-        [self setDecoderOptions:[SGOptions sharedOptions].decoder.copy];
     }
     return self;
 }
@@ -76,9 +75,9 @@
 SGGet0Map(CMTime, duration, self->_packetOutput)
 SGGet0Map(NSDictionary *, metadata, self->_packetOutput)
 SGGet0Map(NSArray<SGTrack *> *, tracks, self->_packetOutput)
-SGGet00Map(SGDemuxerOptions *,demuxerOptions, options, self->_packetOutput)
+SGGet0Map(SGDemuxerOptions *, demuxerOptions, self->_packetOutput)
+SGSet1Map(void, setDemuxerOptions, SGDemuxerOptions *, self->_packetOutput)
 SGGet00Map(SGDecoderOptions *, decoderOptions, options, self->_audioDecoder)
-SGSet11Map(void, setDemuxerOptions, setOptions, SGDemuxerOptions *, self->_packetOutput)
 
 #pragma mark - Setter & Getter
 
@@ -136,6 +135,15 @@ SGSet11Map(void, setDemuxerOptions, setOptions, SGDemuxerOptions *, self->_packe
     return ret;
 }
 
+- (NSArray<SGTrack *> *)finishedTracks
+{
+    __block NSArray<SGTrack *> *ret = nil;
+    SGLockEXE00(self->_lock, ^{
+        ret = [self->_finishedTracks copy];
+    });
+    return ret;
+}
+
 - (SGCapacity)capacityWithType:(SGMediaType)type
 {
     __block SGCapacity ret;
@@ -143,43 +151,6 @@ SGSet11Map(void, setDemuxerOptions, setOptions, SGDemuxerOptions *, self->_packe
         ret = self->_capacities[type];
     });
     return ret;
-}
-
-- (SGBlock)setFinishedTracks:(NSArray<SGTrack *> *)tracks
-{
-    if (tracks.count <= 0) {
-        self->_finishedTracks = nil;
-        return ^{};
-    }
-    SGBlock b1 = ^{}, b2 = ^{};
-    if (![tracks isEqualToArray:self->_finishedTracks]) {
-        NSMutableArray<SGTrack *> *audioTracks = [NSMutableArray array];
-        NSMutableArray<SGTrack *> *videoTracks = [NSMutableArray array];
-        for (SGTrack *obj in tracks) {
-            if ([self->_selectedTracks containsObject:obj] &&
-                ![self->_finishedTracks containsObject:obj]) {
-                if (obj.type == SGMediaTypeAudio) {
-                    [audioTracks addObject:obj];
-                } else if (obj.type == SGMediaTypeVideo) {
-                    [videoTracks addObject:obj];
-                }
-            }
-        }
-        self->_finishedTracks = tracks;
-        if (audioTracks.count) {
-            SGDecodeLoop *decoder = self->_audioDecoder;
-            b1 = ^{
-                [decoder finish:audioTracks];
-            };
-        }
-        if (videoTracks.count) {
-            SGDecodeLoop *decoder = self->_videoDecoder;
-            b2 = ^{
-                [decoder finish:videoTracks];
-            };
-        }
-    }
-    return ^{b1(); b2();};
 }
 
 #pragma mark - Control
@@ -250,20 +221,10 @@ SGSet11Map(void, setDemuxerOptions, setOptions, SGDemuxerOptions *, self->_packe
     return [self->_packetOutput seekable];
 }
 
-- (BOOL)seekToTime:(CMTime)time
-{
-    return [self seekToTime:time result:nil];
-}
-
 - (BOOL)seekToTime:(CMTime)time result:(SGSeekResult)result
 {
-    return [self seekToTime:time toleranceBefor:kCMTimeInvalid toleranceAfter:kCMTimeInvalid result:result];
-}
-
-- (BOOL)seekToTime:(CMTime)time toleranceBefor:(CMTime)toleranceBefor toleranceAfter:(CMTime)toleranceAfter result:(SGSeekResult)result
-{
     SGWeakify(self)
-    return [self->_packetOutput seekToTime:time toleranceBefor:toleranceBefor toleranceAfter:toleranceAfter result:^(CMTime time, NSError *error) {
+    return [self->_packetOutput seekToTime:time result:^(CMTime time, NSError *error) {
         SGStrongify(self)
         if (!error) {
             [self->_audioDecoder flush];
@@ -314,7 +275,11 @@ SGSet11Map(void, setDemuxerOptions, setOptions, SGDemuxerOptions *, self->_packe
                 b1 = [self setState:SGFrameOutputStateSeeking];
                 break;
             case SGPacketOutputStateFinished: {
-                b1 = [self setFinishedTracks:self->_selectedTracks];
+                NSArray<SGTrack *> *tracks = self->_selectedTracks;
+                b1 = ^{
+                    [self->_audioDecoder finish:tracks];
+                    [self->_videoDecoder finish:tracks];
+                };
             }
                 break;
             case SGPacketOutputStateFailed:
@@ -333,8 +298,7 @@ SGSet11Map(void, setDemuxerOptions, setOptions, SGDemuxerOptions *, self->_packe
 - (void)packetOutput:(SGPacketOutput *)packetOutput didOutputPacket:(SGPacket *)packet
 {
     SGLockEXE10(self->_lock, ^SGBlock {
-        SGBlock b1 = ^{}, b2 = ^{};
-        b1 = [self setFinishedTracks:packetOutput.finishedTracks];
+        SGBlock b1 = ^{};
         if ([self->_selectedTracks containsObject:packet.track]) {
             SGDecodeLoop *decoder = nil;
             if (packet.track.type == SGMediaTypeAudio) {
@@ -342,11 +306,11 @@ SGSet11Map(void, setDemuxerOptions, setOptions, SGDemuxerOptions *, self->_packe
             } else if (packet.track.type == SGMediaTypeVideo) {
                 decoder = self->_videoDecoder;
             }
-            b2 = ^{
+            b1 = ^{
                 [decoder putPacket:packet];
             };
         }
-        return ^{b1(); b2();};
+        return b1;
     });
 }
 
@@ -399,9 +363,9 @@ SGSet11Map(void, setDemuxerOptions, setOptions, SGDemuxerOptions *, self->_packe
     });
 }
 
-- (void)decodeLoop:(SGDecodeLoop *)decodeLoop didOutputFrames:(NSArray<__kindof SGFrame *> *)frames needsDrop:(BOOL (^)(void))needsDrop
+- (void)decodeLoop:(SGDecodeLoop *)decodeLoop didOutputFrame:(__kindof SGFrame *)frame
 {
-    [self->_delegate frameOutput:self didOutputFrames:frames needsDrop:needsDrop];
+    [self->_delegate frameOutput:self didOutputFrame:frame];
 }
 
 @end

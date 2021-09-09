@@ -51,7 +51,7 @@ CMTime SGCMTimeDivide(CMTime time, CMTime divisor)
     return CMTimeMake(time.value * divisor.timescale, time.timescale * (int32_t)divisor.value);
 }
 
-CMTimeRange SGCMTimeRangeFitting(CMTimeRange timeRange)
+CMTimeRange SGCMTimeRangeFit(CMTimeRange timeRange)
 {
     return CMTimeRangeMake(SGCMTimeValidate(timeRange.start, kCMTimeNegativeInfinity, YES),
                            SGCMTimeValidate(timeRange.duration, kCMTimePositiveInfinity, YES));

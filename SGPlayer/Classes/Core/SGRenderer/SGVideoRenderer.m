@@ -16,6 +16,96 @@
 #import "SGMacro.h"
 #import "SGLock.h"
 
+#define LY_ROTATE YES
+
+@interface LMKView : MTKView
+{
+    float horizontalDegree;
+    float verticalDegree;
+}
+@property (nonatomic, assign, readonly) float hDegree;
+@property (nonatomic, assign, readonly) float vDegree;
+@end
+
+@implementation LMKView
+
+@synthesize hDegree = horizontalDegree, vDegree = verticalDegree;
+
+- (void)touchesMoved:(NSSet<UITouch *> *)touches withEvent:(UIEvent *)event {
+    UITouch* touch = [touches anyObject];
+    CGPoint point = [touch locationInView:self];
+    CGPoint prePoint = [touch previousLocationInView:self];
+    if (LY_ROTATE) {
+        [self _roatateWithX:point.y - prePoint.y Y:point.x - prePoint.x];
+    }
+    else {
+        [self _changeModelViewWithHorizontal:point.x - prePoint.x Vertical:point.y - prePoint.y];
+    }
+}
+
+
+
+/**
+ *  使用极坐标来跟随镜头
+ *
+ *  @param h 摄像头水平移动角度
+ *  @param v 摄像头抬起角度
+ */
+- (void)_changeModelViewWithHorizontal:(float)h Vertical:(float)v {
+    horizontalDegree -= h / 100;
+    verticalDegree -= v / 100;
+    
+//    horizontalLabel.text = [NSString stringWithFormat:@"偏航角为%.2f", GLKMathRadiansToDegrees(horizontalDegree)];
+//    verticalLabel.text = [NSString stringWithFormat:@"高度角为%.2f", GLKMathRadiansToDegrees(verticalDegree)];
+//
+//    /*
+//     GLKMatrix4 GLKMatrix4MakeLookAt(
+//     float eyeX, float eyeY, float eyeZ,
+//     float centerX, float centerY, float centerZ,
+//     float upX, float upY, float upZ)
+//     */
+//    GLKMatrix4 modelViewMatrix = GLKMatrix4MakeLookAt(0, 0, 0,
+//                                                      sin(horizontalDegree) * cos(verticalDegree),
+//                                                      sin(horizontalDegree) * sin(verticalDegree),
+//                                                      cos(horizontalDegree),
+//                                                      0, 1, 0);
+//
+//    glUniformMatrix4fv(uniforms[UNIFORM_MODELVIEW_MARTRIX], 1, GL_FALSE, modelViewMatrix.m);
+}
+
+
+/**
+ *  旋转表示
+ *
+ *  @param x 绕x轴角度变换
+ *  @param y 绕y轴角度变换
+ */
+- (void)_roatateWithX:(float)x Y:(float)y {
+    horizontalDegree -= x / 100;
+    verticalDegree += y / 100;
+    
+//    horizontalLabel.text = [NSString stringWithFormat:@"绕X轴旋转角度为%.2f", GLKMathRadiansToDegrees(horizontalDegree)];
+//    verticalLabel.text = [NSString stringWithFormat:@"绕Y轴旋转角度为%.2f", GLKMathRadiansToDegrees(verticalDegree)];
+//    //
+//    GLKMatrix4 modelViewMatrix = GLKMatrix4Identity;
+//    modelViewMatrix = GLKMatrix4RotateX(modelViewMatrix, horizontalDegree);
+//    modelViewMatrix = GLKMatrix4RotateY(modelViewMatrix, verticalDegree);
+//    /*
+//     void glUniformMatrix4fv(GLint location,  GLsizei count,  GLboolean transpose,  const GLfloat *value);
+//     location
+//     指明要更改的uniform变量的位置
+//     count
+//     指明要更改的矩阵个数
+//     transpose
+//     指明是否要转置矩阵，并将它作为uniform变量的值。必须为GL_FALSE。
+//     value
+//     指明一个指向count个元素的指针，用来更新指定的uniform变量。
+//     */
+//    glUniformMatrix4fv(uniforms[UNIFORM_MODELVIEW_MARTRIX], 1, GL_FALSE, modelViewMatrix.m);
+}
+
+@end
+
 @interface SGVideoRenderer () <MTKViewDelegate>
 
 {
@@ -25,7 +115,6 @@
         NSUInteger framesFetched;
         NSUInteger framesDisplayed;
         NSTimeInterval currentFrameEndTime;
-        NSTimeInterval currentFrameBeginTime;
     } _flags;
     SGCapacity _capacity;
 }
@@ -36,7 +125,7 @@
 @property (nonatomic, strong, readonly) SGVideoFrame *currentFrame;
 @property (nonatomic, strong, readonly) SGVRProjection *matrixMaker;
 
-@property (nonatomic, strong, readonly) MTKView *metalView;
+@property (nonatomic, strong, readonly) LMKView *metalView;
 @property (nonatomic, strong, readonly) SGMetalModel *planeModel;
 @property (nonatomic, strong, readonly) SGMetalModel *sphereModel;
 @property (nonatomic, strong, readonly) SGMetalRenderer *renderer;
@@ -52,25 +141,6 @@
 
 @synthesize rate = _rate;
 @synthesize delegate = _delegate;
-
-+ (NSArray<NSNumber *> *)supportedPixelFormats
-{
-    return @[
-        @(AV_PIX_FMT_BGRA),
-        @(AV_PIX_FMT_NV12),
-        @(AV_PIX_FMT_YUV420P),
-    ];
-}
-
-+ (BOOL)isSupportedInputFormat:(int)format
-{
-    for (NSNumber *obj in [self supportedPixelFormats]) {
-        if (format == obj.intValue) {
-            return YES;
-        }
-    }
-    return NO;
-}
 
 - (instancetype)init
 {
@@ -199,8 +269,6 @@
         self->_flags.hasNewFrame = NO;
         self->_flags.framesFetched = 0;
         self->_flags.framesDisplayed = 0;
-        self->_flags.currentFrameEndTime = 0;
-        self->_flags.currentFrameBeginTime = 0;
         self->_capacity = SGCapacityCreate();
         return ^{b1();};
     }, ^BOOL(SGBlock block) {
@@ -255,8 +323,6 @@
         self->_flags.hasNewFrame = NO;
         self->_flags.framesFetched = 0;
         self->_flags.framesDisplayed = 0;
-        self->_flags.currentFrameEndTime = 0;
-        self->_flags.currentFrameBeginTime = 0;
         return nil;
     }, ^BOOL(SGBlock block) {
         self->_metalView.paused = NO;
@@ -331,7 +397,6 @@
             self->_currentFrame = newFrame;
             self->_flags.hasNewFrame = YES;
             self->_flags.framesFetched += 1;
-            self->_flags.currentFrameBeginTime = currentMediaTime;
             self->_flags.currentFrameEndTime = currentMediaTime + CMTimeGetSeconds(duration);
             if (self->_frameOutput) {
                 [newFrame lock];
@@ -344,12 +409,7 @@
                 [self->_clock setVideoTime:time];
             };
         } else if (currentMediaTime < self->_flags.currentFrameEndTime) {
-            CMTime time = self->_currentFrame.timeStamp;
-            time = CMTimeAdd(time, SGCMTimeMakeWithSeconds(currentMediaTime - self->_flags.currentFrameBeginTime));
             capacity.duration = SGCMTimeMakeWithSeconds(self->_flags.currentFrameEndTime - currentMediaTime);
-            b2 = ^{
-                [self->_clock setVideoTime:time];
-            };
         }
         if (!SGCapacityIsEqual(self->_capacity, capacity)) {
             self->_capacity = capacity;
@@ -366,17 +426,11 @@
 
 - (void)drawInMTKView:(MTKView *)view
 {
-    if (!view.superview ||
-        (view.frame.size.width <= 1 &&
-         view.frame.size.height <= 1)) {
-        return;
-    }
     [self->_lock lock];
     SGVideoFrame *frame = self->_currentFrame;
-    SGRational presentationSize = frame.descriptor.presentationSize;
-    if (!frame ||
-        presentationSize.num == 0 ||
-        presentationSize.den == 0) {
+    NSUInteger width = frame.descriptor.width;
+    NSUInteger height = frame.descriptor.height;
+    if (!frame || width == 0 || height == 0) {
         [self->_lock unlock];
         return;
     }
@@ -410,11 +464,8 @@
     if (rotate && (rotate % 90) == 0) {
         float radians = GLKMathDegreesToRadians(-rotate);
         baseMatrix = GLKMatrix4RotateZ(baseMatrix, radians);
-        SGRational size = {
-            presentationSize.num * ABS(cos(radians)) + presentationSize.den * ABS(sin(radians)),
-            presentationSize.num * ABS(sin(radians)) + presentationSize.den * ABS(cos(radians)),
-        };
-        presentationSize = size;
+        width = frame.descriptor.width * ABS(cos(radians)) + frame.descriptor.height * ABS(sin(radians));
+        height = frame.descriptor.width * ABS(sin(radians)) + frame.descriptor.height * ABS(cos(radians));
     }
     NSArray<id<MTLTexture>> *textures = nil;
     if (frame.pixelBuffer) {
@@ -437,7 +488,7 @@
     if (drawableSize.width == 0 || drawableSize.height == 0) {
         return;
     }
-    MTLSize textureSize = MTLSizeMake(presentationSize.num, presentationSize.den, 0);
+    MTLSize textureSize = MTLSizeMake(width, height, 0);
     MTLSize layerSize = MTLSizeMake(drawable.texture.width, drawable.texture.height, 0);
     switch (displayMode) {
         case SGDisplayModePlane: {
@@ -449,8 +500,13 @@
         case SGDisplayModeVR: {
             GLKMatrix4 matrix = GLKMatrix4Identity;
             Float64 aspect = (Float64)drawable.texture.width / drawable.texture.height;
+            self->_matrixMaker.horizontalDegree = self.metalView.hDegree;
+            self->_matrixMaker.verticalDegree = self.metalView.vDegree;
             if (![self->_matrixMaker matrixWithAspect:aspect matrix1:&matrix]) {
                 break;
+            }
+            if (self.gestureRoationChanged) {
+                self.gestureRoationChanged(self.metalView.hDegree, self.metalView.vDegree);
             }
             self->_projection1.matrix = GLKMatrix4Multiply(baseMatrix, matrix);
             projections = @[self->_projection1];
@@ -461,6 +517,8 @@
             GLKMatrix4 matrix1 = GLKMatrix4Identity;
             GLKMatrix4 matrix2 = GLKMatrix4Identity;
             Float64 aspect = (Float64)drawable.texture.width / drawable.texture.height / 2.0;
+            self->_matrixMaker.horizontalDegree = self.metalView.hDegree;
+            self->_matrixMaker.verticalDegree = self.metalView.vDegree;
             if (![self->_matrixMaker matrixWithAspect:aspect matrix1:&matrix1 matrix2:&matrix2]) {
                 break;
             }
@@ -518,7 +576,7 @@
     self->_sphereModel = [[SGMetalSphereModel alloc] initWithDevice:device];
     self->_textureLoader = [[SGMetalTextureLoader alloc] initWithDevice:device];
     self->_pipelinePool = [[SGMetalRenderPipelinePool alloc] initWithDevice:device];
-    self->_metalView = [[MTKView alloc] initWithFrame:CGRectZero device:device];
+    self->_metalView = [[LMKView alloc] initWithFrame:CGRectZero device:device];
     self->_metalView.preferredFramesPerSecond = self->_preferredFramesPerSecond;
     self->_metalView.translatesAutoresizingMaskIntoConstraints = NO;
     self->_metalView.colorPixelFormat = MTLPixelFormatBGRA8Unorm;
@@ -552,7 +610,6 @@
     if (self->_view != view) {
         self->_view = view;
         [self updateMetalView];
-        [self updateTimeInterval];
     }
 }
 
@@ -626,12 +683,7 @@
 - (void)updateTimeInterval
 {
     self->_fetchTimer.timeInterval = 0.5 / self->_preferredFramesPerSecond;
-    if (self->_view &&
-        self->_view == self->_metalView.superview) {
-        self->_metalView.preferredFramesPerSecond = self->_preferredFramesPerSecond;
-    } else {
-        self->_metalView.preferredFramesPerSecond = 1;
-    }
+    self->_metalView.preferredFramesPerSecond = self->_preferredFramesPerSecond;
 }
 
 @end

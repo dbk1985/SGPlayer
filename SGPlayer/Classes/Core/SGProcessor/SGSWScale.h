@@ -11,29 +11,9 @@
 
 @interface SGSWScale : NSObject
 
-/**
- *
- */
-+ (BOOL)isSupportedInputFormat:(int)format;
-
-/**
- *
- */
-+ (BOOL)isSupportedOutputFormat:(int)format;
-
-/**
- *
- */
 @property (nonatomic, copy) SGVideoDescriptor *inputDescriptor;
-
-/**
- *
- */
 @property (nonatomic, copy) SGVideoDescriptor *outputDescriptor;
 
-/**
- *
- */
 @property (nonatomic) int flags;          // SWS_FAST_BILINEAR
 
 /**

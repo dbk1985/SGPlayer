@@ -21,14 +21,7 @@
 
 @implementation SGFrame
 
-@synthesize flags = _flags;
 @synthesize reuseName = _reuseName;
-
-+ (instancetype)frame
-{
-    NSAssert(NO, @"Subclass only.");
-    return nil;
-}
 
 - (instancetype)init
 {
@@ -80,7 +73,6 @@
 - (void)unlock
 {
     [self->_lock lock];
-    NSAssert(self->_lockingCount > 0, @"SGFrame, Invalid locking count");
     self->_lockingCount -= 1;
     BOOL comeback = self->_lockingCount == 0;
     [self->_lock unlock];
@@ -95,7 +87,6 @@
         av_frame_unref(self->_core);
     }
     self->_size = 0;
-    self->_flags = 0;
     self->_track = nil;
     self->_duration = kCMTimeZero;
     self->_timeStamp = kCMTimeZero;
@@ -119,18 +110,6 @@
     self->_duration = [cd convertDuration:duration];
     self->_timeStamp = [cd convertTimeStamp:timeStamp];
     self->_decodeTimeStamp = [cd convertTimeStamp:decodeTimeStamp];
-}
-
-- (void)fillWithFrame:(SGFrame *)frame
-{
-    av_frame_ref(self->_core, frame->_core);
-    self->_size = frame->_size;
-    self->_track = frame->_track;
-    self->_metadata = frame->_metadata;
-    self->_duration = frame->_duration;
-    self->_timeStamp = frame->_timeStamp;
-    self->_decodeTimeStamp = frame->_decodeTimeStamp;
-    self->_codecDescriptor = frame->_codecDescriptor.copy;
 }
 
 - (void)fillWithTimeStamp:(CMTime)timeStamp decodeTimeStamp:(CMTime)decodeTimeStamp duration:(CMTime)duration
