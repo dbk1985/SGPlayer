@@ -110,7 +110,8 @@
     modelMatrix = GLKMatrix4RotateY(modelMatrix, GLKMathDegreesToRadians(self.viewport.x) * (self.viewport.flipX ? -1 : 1));
     
     GLKMatrix4 viewMatrix = GLKMatrix4MakeLookAt(0, 0, 0.0, 0, 0, -1000, 0, 1, 0);
-    GLKMatrix4 projectionMatrix = GLKMatrix4MakePerspective(GLKMathDegreesToRadians(self.viewport.degress), aspect, 0.1f, 400.0f);
+    // 1.5放大可是区域，这样视频看起来不会模糊
+    GLKMatrix4 projectionMatrix = GLKMatrix4MakePerspective(GLKMathDegreesToRadians(self.viewport.degress * 1.5), aspect, 0.1f, 400.0f);
     GLKMatrix4 modelViewProjectionMatrix = GLKMatrix4Multiply(projectionMatrix, viewMatrix);
     modelViewProjectionMatrix = GLKMatrix4Multiply(modelViewProjectionMatrix, modelMatrix);
     *matrix1 = modelViewProjectionMatrix;
